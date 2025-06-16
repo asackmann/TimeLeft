@@ -1,14 +1,12 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import numpy as np
 from datetime import datetime
 import warnings
-import io
 import contextlib
 import json
 import time
+import plotly.graph_objects as go
 
 # Deshabilitar más tipos de warnings en Streamlit
 #st.set_option('deprecation.showfileUploaderEncoding', False)
@@ -188,31 +186,72 @@ kpi_cols[3].metric("Años restantes", años_restantes)
 # Gráficas al final
 st.subheader("Gráficas")
 # Gráfica de círculos
-fig, ax = plt.subplots(figsize=(16, 5))
-ax.scatter(x, -y, c=color_list, s=28)
-ax.axis("off")
-ax.set_title(f"Cada círculo representa una semana de vida de {nombre}", fontsize=20, pad=20)
-legend_patches = [mpatches.Patch(color=col, label=etapa) for etapa, col in colors.items()]
-ax.legend(handles=legend_patches, loc='lower center', bbox_to_anchor=(0.5, -0.28), ncol=2, fontsize=12, frameon=False)
-st.pyplot(fig, use_container_width=True)
+fig = go.Figure()
+fig.add_trace(go.Scatter(
+    x=x,
+    y=-y,
+    mode='markers',
+    marker=dict(size=6, color=color_list, opacity=0.8),
+    text=[f"Semana {i+1}" for i in range(len(x))],
+    hoverinfo='text'
+))
 
-# Gráfico de barras horizontal acumulado
-fig2, ax2 = plt.subplots(figsize=(10, 2))  # Cambiar la altura a 2 cm
+fig.update_layout(
+    title=f"Cada círculo representa una semana de vida de {nombre}",
+    xaxis=dict(showgrid=False, zeroline=False, visible=False),
+    yaxis=dict(showgrid=False, zeroline=False, visible=False),
+    showlegend=False
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# Gráfico de barras horizontal acumulado interactivo con Plotly
+fig2 = go.Figure()
 left = 0
 for etapa, color in zip(fines_semana_por_etapa.keys(), [colors[e] for e in fines_semana_por_etapa.keys()]):
-    ax2.barh([""], [fines_semana_por_etapa[etapa]], left=left, color=color, label=etapa)
+    porcentaje = df.loc[etapa, "Porcentaje"]
+    porcentaje_acumulado = df.loc[etapa, "Porcentaje acumulado"]
+    fig2.add_trace(go.Bar(
+        y=[""],
+        x=[fines_semana_por_etapa[etapa]],
+        name=etapa,
+        orientation='h',
+        marker=dict(color=color),
+        hovertemplate=(
+            f"<b>{etapa}</b><br>"
+            f"Semanas vividas: {{x}}<br>"
+            f"Porcentaje: {porcentaje:.2f}%<br>"
+            f"Porcentaje acumulado: {porcentaje_acumulado:.2f}%<extra></extra>"
+        )
+    ))
     left += fines_semana_por_etapa[etapa]
 
 # Agregar representación para 'Futuro estimado'
 if "Futuro estimado (37-76)" in fines_semana_por_etapa:
     semanas_futuro_estimado = etapas["Futuro estimado (37-76)"] - fines_semana_por_etapa["Futuro estimado (37-76)"]
     if semanas_futuro_estimado > 0:
-        ax2.barh([""], [semanas_futuro_estimado], left=left, color=colors["Futuro estimado (37-76)"], alpha=0.5, label="Futuro estimado restante")
+        porcentaje = (semanas_futuro_estimado / total_semanas) * 100
+        porcentaje_acumulado = 100  # Siempre será el 100% acumulado al final
+        fig2.add_trace(go.Bar(
+            y=[""],
+            x=[semanas_futuro_estimado],
+            name="Futuro estimado restante",
+            orientation='h',
+            marker=dict(color=colors["Futuro estimado (37-76)"], opacity=0.5),
+            hovertemplate=(
+                "<b>Futuro estimado restante</b><br>"
+                f"Semanas restantes: {{x}}<br>"
+                f"Porcentaje: {porcentaje:.2f}%<br>"
+                f"Porcentaje acumulado: {porcentaje_acumulado:.2f}%<extra></extra>"
+            )
+        ))
 
-ax2.set_xlabel('Fines de semana vividos')
-ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10, frameon=False)
-fig2.tight_layout()
-st.pyplot(fig2, use_container_width=True)
+fig2.update_layout(
+    barmode='stack',
+    xaxis_title='Fines de semana vividos',
+    showlegend=True,
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+)
+st.plotly_chart(fig2, use_container_width=True)
 
 # Mostrar los insights como una lista estática
 insights = [
