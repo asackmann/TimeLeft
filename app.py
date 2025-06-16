@@ -142,6 +142,35 @@ def crear_grafico_circulos(x, y, color_list, current_week_index):
     )
     return fig
 
+def calcular_horas_por_etapa(etapa, semanas_etapa, horas_dormir_por_dia, horas_trabajo_por_dia):
+    """
+    Calculate the hours spent sleeping, working, and on personal time for a specific stage.
+
+    Parameters:
+        etapa (str): The name of the stage.
+        semanas_etapa (int): The number of weeks in the stage.
+        horas_dormir_por_dia (int): Average hours of sleep per day.
+        horas_trabajo_por_dia (int): Average hours of work per day.
+
+    Returns:
+        tuple: (hours sleeping, hours working, hours personal)
+    """
+    dias_etapa = semanas_etapa * 7
+
+    # Define the stages where working hours are applicable
+    etapas_trabajo = ["Universidad y soltería", "Carrera y noviazgo", "Hasta jubilarse"]
+
+    # Calculate working hours only for specific stages
+    if etapa in etapas_trabajo:
+        horas_trabajadas = dias_etapa * horas_trabajo_por_dia
+    else:
+        horas_trabajadas = 0
+
+    horas_dormidas = dias_etapa * horas_dormir_por_dia
+    horas_personales = (dias_etapa * 24) - (horas_dormidas + horas_trabajadas)
+
+    return horas_dormidas, horas_trabajadas, horas_personales
+
 # Configuración de la página
 
 st.set_page_config(page_title="Tu vida", layout="wide")
@@ -172,7 +201,7 @@ except Exception:
 st.sidebar.header("Configura tus datos")
 nombre = st.sidebar.text_input("¿Cuál es tu nombre?", nombre_default, key="sidebar_nombre")
 fecha_nacimiento = st.sidebar.date_input("Fecha de nacimiento", fecha_nacimiento_default, key="sidebar_fecha_nacimiento")
-esperanza_vida = st.sidebar.number_input("Esperanza de vida (años)", min_value=1, max_value=120, value=esperanza_vida_default, key="sidebar_esperanza_vida")
+
 
 # Add a new variable for retirement age
 edad_jubilacion_default = 65
@@ -183,6 +212,10 @@ edad_jubilacion = st.sidebar.number_input(
     value=edad_jubilacion_default,
     key="sidebar_edad_jubilacion"
 )
+
+esperanza_vida = st.sidebar.number_input("Esperanza de vida (años)", min_value=1, max_value=120, value=esperanza_vida_default, key="sidebar_esperanza_vida")
+
+tiempo_libre_diario = st.sidebar.slider("Horas promedio de tiempo personal por día", 0.0, 16.0, 4.0, 0.5)
 
 # --- Sincronizar la URL cuando cambian los inputs ---
 st.experimental_set_query_params(
@@ -214,14 +247,15 @@ etapas_input = [
     ("Post jubilación", edad_jubilacion, esperanza_vida, "#F8F8FF") # Casi blanco (futuro)
 ]
 
+# Ajustar las claves de las etapas para que no incluyan las edades
 etapas = {}
 colors = {}
 for nombre_etapa, edad_ini, edad_fin, color in etapas_input:
     fecha_ini = max(fecha_nac_dt, datetime(fecha_nac_dt.year + edad_ini, fecha_nac_dt.month, fecha_nac_dt.day))
     fecha_fin = min(datetime(fecha_nac_dt.year + edad_fin, fecha_nac_dt.month, fecha_nac_dt.day), fecha_muerte_estimada)
     semanas = max(0, (fecha_fin - fecha_ini).days // 7)
-    etapas[nombre_etapa + f" ({edad_ini}-{edad_fin})"] = semanas
-    colors[nombre_etapa + f" ({edad_ini}-{edad_fin})"] = color
+    etapas[nombre_etapa] = semanas  # Usar solo el nombre de la etapa como clave
+    colors[nombre_etapa] = color
 
 df = pd.DataFrame.from_dict(etapas, orient="index", columns=["Semanas"])
 total_semanas = df["Semanas"].sum()
@@ -322,7 +356,7 @@ st.markdown("""
 # )
 
 
-tiempo_libre_diario = st.sidebar.slider("Horas promedio de tiempo personal por día", 0.0, 16.0, 4.0, 0.5)
+
 # --- Cálculos base --- 
 # Asegurar que fecha_muerte sea del mismo tipo que fecha_nacimiento
 fecha_muerte = fecha_muerte_estimada
@@ -407,17 +441,17 @@ fig2.add_trace(go.Scatter(
     hovertemplate=f"<b>Semana actual</b><br>Semanas vividas: {semanas_vividas}<extra></extra>"
 ))
 
-if "Hasta jubilarse (37-65)" in fines_semana_por_etapa:
-    semanas_hasta_jubilarse = etapas["Hasta jubilarse (37-65)"] - fines_semana_por_etapa["Hasta jubilarse (37-65)"]
+if "Hasta jubilarse" in fines_semana_por_etapa:
+    semanas_hasta_jubilarse = etapas["Hasta jubilarse"] - fines_semana_por_etapa["Hasta jubilarse"]
     if semanas_hasta_jubilarse > 0:
         porcentaje = (semanas_hasta_jubilarse / total_semanas) * 100
-        porcentaje_acumulado = df.loc["Hasta jubilarse (37-65)", "Porcentaje acumulado"]
+        porcentaje_acumulado = df.loc["Hasta jubilarse", "Porcentaje acumulado"]
         fig2.add_trace(go.Bar(
             y=[""],
             x=[semanas_hasta_jubilarse],
             name="Hasta jubilarse restante",
             orientation='h',
-            marker=dict(color=colors["Hasta jubilarse (37-65)"], opacity=0.5),
+            marker=dict(color=colors["Hasta jubilarse"], opacity=0.5),
             hovertemplate=(
                 f"<b>Hasta jubilarse restante</b><br>"
                 f"Semanas restantes: {semanas_hasta_jubilarse}<br>"
@@ -426,17 +460,17 @@ if "Hasta jubilarse (37-65)" in fines_semana_por_etapa:
             )
         ))
 
-if "Post jubilación (65-76)" in fines_semana_por_etapa:
-    semanas_post_jubilacion = etapas["Post jubilación (65-76)"] - fines_semana_por_etapa["Post jubilación (65-76)"]
+if "Post jubilación" in fines_semana_por_etapa:
+    semanas_post_jubilacion = etapas["Post jubilación"] - fines_semana_por_etapa["Post jubilación"]
     if semanas_post_jubilacion > 0:
         porcentaje = (semanas_post_jubilacion / total_semanas) * 100
-        porcentaje_acumulado = df.loc["Post jubilación (65-76)", "Porcentaje acumulado"]
+        porcentaje_acumulado = df.loc["Post jubilación", "Porcentaje acumulado"]
         fig2.add_trace(go.Bar(
             y=[""],
             x=[semanas_post_jubilacion],
             name="Post jubilación restante",
             orientation='h',
-            marker=dict(color=colors["Post jubilación (65-76)"], opacity=0.5),
+            marker=dict(color=colors["Post jubilación"], opacity=0.5),
             hovertemplate=(
                 f"<b>Post jubilación restante</b><br>"
                 f"Semanas restantes: {semanas_post_jubilacion}<br>"
@@ -571,9 +605,9 @@ with col1:
         )
     else:
         semanas_etapa = etapas[etapa_seleccionada]
-        horas_dormidas_etapa = semanas_etapa * 7 * horas_dormir_por_dia
-        horas_trabajadas_etapa = semanas_etapa * 7 * horas_trabajo_por_dia
-        horas_personales_etapa = (semanas_etapa * 7 * horas_por_dia) - (horas_dormidas_etapa + horas_trabajadas_etapa)
+        horas_dormidas_etapa, horas_trabajadas_etapa, horas_personales_etapa = calcular_horas_por_etapa(
+            etapa_seleccionada, semanas_etapa, horas_dormir_por_dia, horas_trabajo_por_dia
+        )
 
         fig_sleep_awake = go.Figure()
         fig_sleep_awake.add_trace(go.Pie(
@@ -625,4 +659,6 @@ st.markdown("</ul>", unsafe_allow_html=True)
  
 
 st.caption("Hecho con ❤️ por TimeLeft")
+
+
 
