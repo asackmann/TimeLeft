@@ -165,6 +165,18 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Agregar estilo CSS para ocultar los divs de advertencias
+st.markdown(
+    """
+    <style>
+    div[data-testid="stAlert"] {
+        display: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # Rediseño de la página principal
 # KPIs en una única línea
 kpi_cols = st.columns(4)
@@ -195,7 +207,7 @@ ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10, frameon=Fals
 fig2.tight_layout()
 st.pyplot(fig2, use_container_width=True)
 
-# Mover el banner dinámico al final
+# Mostrar los insights como una lista estática
 insights = [
     f"🌟 Ya viviste el {porcentaje_vivido:.2f}% de tu vida. Aún te quedan {años_restantes} años llenos de potencial.",
     f"🎨 Cada punto en tu gráfico es una semana: una historia, una oportunidad. ¿Cómo vas a pintar las siguientes {semanas_restantes} semanas?",
@@ -213,25 +225,12 @@ insights = [
     f"🕒 Si dedicaras 1 hora semanal a un proyecto personal, en 20 años sumarías más de 1.000 horas."
 ]
 
-insight_placeholder = st.empty()
+st.subheader("Insights")
+st.markdown("<ul>", unsafe_allow_html=True)
 for insight in insights:
-    insight_placeholder.markdown(f"<div class='insight-banner'>{insight}</div>", unsafe_allow_html=True)
-    time.sleep(5)
-
-# Bloque de depuración para verificar los datos de las gráficas
-st.subheader("Depuración de datos para gráficas")
-st.write("Datos de colores:", color_list[:10])  # Mostrar los primeros 10 colores
-st.write("Coordenadas X:", x[:10])  # Mostrar las primeras 10 coordenadas X
-st.write("Coordenadas Y:", y[:10])  # Mostrar las primeras 10 coordenadas Y
-st.write("Fines de semana por etapa:", fines_semana_por_etapa)
+    st.markdown(f"<li>{insight}</li>", unsafe_allow_html=True)
+st.markdown("</ul>", unsafe_allow_html=True)
+ 
 
 st.caption("Hecho con ❤️ por TimeLeft")
 
-# Redirigir warnings a un buffer desde el inicio
-warnings_buffer = io.StringIO()
-with contextlib.redirect_stderr(warnings_buffer):
-    # Mostrar los warnings capturados al final de la página
-    st.markdown("---")
-    st.subheader("Warnings")
-    st.text("Si hay warnings, aparecerán aquí:")
-    st.text(warnings_buffer.getvalue())
