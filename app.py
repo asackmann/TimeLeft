@@ -8,10 +8,141 @@ import contextlib
 import json
 import time
 import plotly.graph_objects as go
+import random
 
 # Deshabilitar más tipos de warnings en Streamlit
 #st.set_option('deprecation.showfileUploaderEncoding', False)
 #st.set_option('deprecation.showWarningOnDirectExecution', False)
+
+
+def calcular_semanas(fecha_inicio, fecha_fin):
+    return max(0, (fecha_fin - fecha_inicio).days // 7)
+
+def calcular_horas_por_categoria(dias_totales, horas_dormir, horas_trabajo):
+    horas_dormidas = dias_totales * horas_dormir
+    horas_trabajadas = dias_totales * horas_trabajo
+    horas_personales = (dias_totales * 24) - (horas_dormidas + horas_trabajadas)
+    return horas_dormidas, horas_trabajadas, horas_personales
+
+def crear_grafico_torta(labels, values, titulo):
+    fig = go.Figure()
+    fig.add_trace(go.Pie(labels=labels, values=values, hole=0.4))
+    fig.update_layout(title=titulo)
+    return fig
+
+def crear_grafico_barras(etapas, colores, semanas_vividas):
+    fig = go.Figure()
+    for etapa, color in zip(etapas.keys(), colores):
+        semanas = etapas[etapa]
+        fig.add_trace(go.Bar(
+            y=[""],
+            x=[semanas],
+            name=etapa,
+            orientation='h',
+            marker=dict(color=color),
+            hovertemplate=f"<b>{etapa}</b><br>Semanas: {semanas}<extra></extra>"
+        ))
+    fig.add_trace(go.Scatter(
+        y=[""],
+        x=[semanas_vividas],
+        mode="markers",
+        marker=dict(size=12, color="red", symbol="diamond"),
+        name="Semana actual",
+        hovertemplate=f"<b>Semana actual</b><br>Semanas vividas: {semanas_vividas}<extra></extra>"
+    ))
+    fig.update_layout(barmode='stack', height=200)
+    return fig
+
+# Función para crear el gráfico de barras horizontal acumulado
+
+def crear_grafico_barras_acumulado(etapas, colores, semanas_vividas, semanas_hasta_jubilarse=None, semanas_post_jubilacion=None):
+    fig = go.Figure()
+    for etapa, color in zip(etapas.keys(), colores):
+        semanas = etapas[etapa]
+        fig.add_trace(go.Bar(
+            y=[""],
+            x=[semanas],
+            name=etapa,
+            orientation='h',
+            marker=dict(color=color),
+            hovertemplate=(
+                f"<b>{etapa}</b><br>Semanas vividas: {semanas}<extra></extra>"
+            )
+        ))
+
+    # Agregar marcador para la semana actual
+    fig.add_trace(go.Scatter(
+        y=[""],
+        x=[semanas_vividas],
+        mode="markers",
+        marker=dict(size=12, color="red", symbol="diamond"),
+        name="Semana actual",
+        hovertemplate=f"<b>Semana actual</b><br>Semanas vividas: {semanas_vividas}<extra></extra>"
+    ))
+
+    # Agregar barras adicionales si existen
+    if semanas_hasta_jubilarse:
+        fig.add_trace(go.Bar(
+            y=[""],
+            x=[semanas_hasta_jubilarse],
+            name="Hasta jubilarse restante",
+            orientation='h',
+            marker=dict(color=colors["Hasta jubilarse (37-65)"], opacity=0.5),
+            hovertemplate=(
+                f"<b>Hasta jubilarse restante</b><br>Semanas restantes: {semanas_hasta_jubilarse}<extra></extra>"
+            )
+        ))
+
+    if semanas_post_jubilacion:
+        fig.add_trace(go.Bar(
+            y=[""],
+            x=[semanas_post_jubilacion],
+            name="Post jubilación restante",
+            orientation='h',
+            marker=dict(color=colors["Post jubilación (65-76)"], opacity=0.5),
+            hovertemplate=(
+                f"<b>Post jubilación restante</b><br>Semanas restantes: {semanas_post_jubilacion}<extra></extra>"
+            )
+        ))
+
+    fig.update_layout(
+        barmode='stack',
+        xaxis_title='Fines de semanas vividos',
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0
+        ),
+        height=200
+    )
+    return fig
+
+
+# Función para crear el gráfico de círculos
+
+def crear_grafico_circulos(x, y, color_list, current_week_index):
+    color_list[current_week_index] = "#FF0000"  # Resaltar la semana actual
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=x,
+        y=-y,
+        mode='markers',
+        marker=dict(size=6, color=color_list, opacity=0.8),
+        text=[f"Semana {i+1}" for i in range(len(x))],
+        hoverinfo='text'
+    ))
+    fig.update_layout(
+        xaxis=dict(showgrid=False, zeroline=False, visible=False),
+        yaxis=dict(showgrid=False, zeroline=False, visible=False),
+        margin=dict(l=0, r=0, t=30, b=0),
+        showlegend=False
+    )
+    return fig
+
+# Configuración de la página
 
 st.set_page_config(page_title="Tu vida", layout="wide")
 st.title("⏳ Tu vida en semanas")
@@ -463,86 +594,9 @@ with col1:
 with col2:
     # Mantener el gráfico de torta de tiempo restante estático
     st.plotly_chart(fig_remaining_time, use_container_width=True, key="plotly_chart_remaining_time")
+ 
 
-# Mostrar tablas con horas
-st.subheader("Distribución de horas")
-col1, col2 = st.columns(2)
-
-# Botón para elegir entre total o etapa específica
-etapa_seleccionada = st.selectbox(
-    "Selecciona una etapa para ver los valores relativos:",
-    ["Total"] + list(etapas.keys()),
-    key="selectbox_etapa_tabla"
-)
-
-if etapa_seleccionada == "Total":
-    divisor = 1
-    titulo_tabla = "Valores totales"
-    horas_dormidas_etapa = horas_dormidas
-    horas_trabajadas_etapa = horas_trabajadas
-    horas_personales_etapa = horas_personales
-else:
-    divisor = etapas[etapa_seleccionada] * 7 * horas_por_dia
-    titulo_tabla = f"Valores relativos a la etapa: {etapa_seleccionada}"
-    semanas_etapa = etapas[etapa_seleccionada]
-    horas_dormidas_etapa = semanas_etapa * 7 * horas_dormir_por_dia
-    horas_trabajadas_etapa = semanas_etapa * 7 * horas_trabajo_por_dia
-    horas_personales_etapa = (semanas_etapa * 7 * horas_por_dia) - (horas_dormidas_etapa + horas_trabajadas_etapa)
-
-# Actualizar tabla de "Horas actuales" con valores dinámicos
-with col1:
-    st.markdown(f"### {titulo_tabla} - Horas actuales")
-    st.table(pd.DataFrame({
-        "Categoría": ["Durmiendo", "Trabajando", "Tiempo personal"],
-        "Horas": [
-            f"{int(horas_dormidas_etapa):,}".replace(",", "."),
-            f"{int(horas_trabajadas_etapa):,}".replace(",", "."),
-            f"{int(horas_personales_etapa):,}".replace(",", ".")
-        ],
-        "%": [
-            f"{(horas_dormidas_etapa / divisor * 100):.2f}%" if divisor > 1 else "-",
-            f"{(horas_trabajadas_etapa / divisor * 100):.2f}%" if divisor > 1 else "-",
-            f"{(horas_personales_etapa / divisor * 100):.2f}%" if divisor > 1 else "-"
-        ]
-    }))
-
-with col2:
-    st.markdown(f"### {titulo_tabla} - Horas restantes")
-    st.table(pd.DataFrame({
-        "Categoría": ["Trabajo futuro", "Tiempo personal restante"],
-        "Horas": [f"{int(horas_trabajo_futuro):,}".replace(",", "."), f"{int(horas_personales_restantes):,}".replace(",", ".")],
-        "%": [
-            f"{(horas_trabajo_futuro / divisor * 100):.2f}%" if divisor > 1 else "-",
-            f"{(horas_personales_restantes / divisor * 100):.2f}%" if divisor > 1 else "-"
-        ]
-    }))
-
-# Actualizar gráfico de torta "Distribución del tiempo" dinámicamente
-fig_sleep_awake = go.Figure()
-fig_sleep_awake.add_trace(go.Pie(
-    labels=["Durmiendo", "Trabajando", "Tiempo personal"],
-    values=[
-        horas_dormidas_etapa / horas_por_dia,
-        horas_trabajadas_etapa / horas_por_dia,
-        horas_personales_etapa / horas_por_dia
-    ],
-    hole=0.4
-))
-fig_sleep_awake.update_layout(
-    title="Distribución del tiempo: Durmiendo, Trabajando y Tiempo Personal"
-)
-
-# Mostrar gráficos en una línea horizontal
-st.subheader("Gráficos de distribución")
-col1, col2 = st.columns(2)
-
-with col1:
-    st.plotly_chart(fig_sleep_awake, use_container_width=True, key="plotly_chart_sleep_awake_2")
-
-with col2:
-    st.plotly_chart(fig_remaining_time, use_container_width=True, key="plotly_chart_remaining_time_2")
-
-# Mostrar los insights como una lista estática
+# Insights dinámicos 
 insights = [
     f"🌟 Ya viviste el {porcentaje_vivido:.2f}% de tu vida. Aún te quedan {años_restantes} años llenos de potencial.",
     f"🎨 Cada punto en tu gráfico es una semana: una historia, una oportunidad. ¿Cómo vas a pintar las siguientes {semanas_restantes} semanas?",
@@ -560,9 +614,12 @@ insights = [
     f"🕒 Si dedicaras 1 hora semanal a un proyecto personal, en 20 años sumarías más de 1.000 horas."
 ]
 
+# Seleccionar 3 insights aleatorios
+insights_random = random.sample(insights, 3)
+
 st.subheader("Insights")
 st.markdown("<ul>", unsafe_allow_html=True)
-for insight in insights:
+for insight in insights_random:
     st.markdown(f"<li>{insight}</li>", unsafe_allow_html=True)
 st.markdown("</ul>", unsafe_allow_html=True)
  
