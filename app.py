@@ -559,8 +559,6 @@ horas_personales_restantes = (etapas.get("Futuro", 0) * 7 * horas_por_dia) - hor
 
 
 # --- KPIs ---
-st.subheader("Resumen actual de tu vida") 
-
 etapas_ordenadas = list(etapas.keys())
 semana_actual_acumulada = 0
 etapa_actual = None
