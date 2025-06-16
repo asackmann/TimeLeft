@@ -4,12 +4,25 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 from datetime import datetime
+import warnings
+import io
+import contextlib
+import json
+import time
+
+# Deshabilitar más tipos de warnings en Streamlit
+#st.set_option('deprecation.showfileUploaderEncoding', False)
+#st.set_option('deprecation.showWarningOnDirectExecution', False)
 
 st.set_page_config(page_title="TimeLeft - Visualiza tu vida", layout="wide")
 st.title("⏳ TimeLeft: Visualiza tu vida en semanas")
 
-# --- Leer parámetros de la URL si existen ---
+# Restaurar st.experimental_get_query_params y ocultar el mensaje de advertencia
+warnings.filterwarnings("ignore", category=FutureWarning, module="streamlit")
+
 query_params = st.experimental_get_query_params()
+
+# --- Leer parámetros de la URL si existen ---
 nombre_url = query_params.get("nombre", [None])[0]
 fecha_nacimiento_url = query_params.get("fecha_nacimiento", [None])[0]
 esperanza_vida_url = query_params.get("esperanza_vida", [None])[0]
@@ -32,11 +45,11 @@ fecha_nacimiento = st.sidebar.date_input("Fecha de nacimiento", fecha_nacimiento
 esperanza_vida = st.sidebar.number_input("Esperanza de vida (años)", min_value=1, max_value=120, value=esperanza_vida_default, key="sidebar_esperanza_vida")
 
 # --- Sincronizar la URL cuando cambian los inputs ---
-st.query_params = {
-    "nombre": nombre,
-    "fecha_nacimiento": fecha_nacimiento.strftime("%Y-%m-%d"),
-    "esperanza_vida": str(esperanza_vida)
-}
+st.experimental_set_query_params(
+    nombre=nombre,
+    fecha_nacimiento=fecha_nacimiento.strftime("%Y-%m-%d"),
+    esperanza_vida=str(esperanza_vida)
+)
 
 fecha_hoy = datetime.today()
 
@@ -131,17 +144,37 @@ st.markdown("""
         padding: 0.5rem 0.5rem;
         margin-bottom: 0.5rem;
     }
+    .kpi-row {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
+    }
+    .insight-banner {
+        background: #e1f5fe;
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        font-size: 1.2rem;
+        text-align: center;
+        transition: background 0.5s;
+    }
+    .insight-banner:nth-child(odd) {
+        background: #fff3e0;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# KPIs primero
-st.markdown('<div class="kpi-card">', unsafe_allow_html=True)
-st.metric("% de vida vivido", f"{porcentaje_vivido:.2f}%")
-st.metric("Fines de semana vividos", semanas_vividas)
-st.metric("Fines de semana restantes", semanas_restantes)
-st.metric("Años restantes", años_restantes)
-st.markdown('</div>', unsafe_allow_html=True)
+# Rediseño de la página principal
+# KPIs en una única línea
+kpi_cols = st.columns(4)
+kpi_cols[0].metric("% de vida vivido", f"{porcentaje_vivido:.2f}%")
+kpi_cols[1].metric("Fines de semana vividos", semanas_vividas)
+kpi_cols[2].metric("Fines de semana restantes", semanas_restantes)
+kpi_cols[3].metric("Años restantes", años_restantes)
 
+# Gráficas al final
+st.subheader("Gráficas")
 # Gráfica de círculos
 fig, ax = plt.subplots(figsize=(16, 5))
 ax.scatter(x, -y, c=color_list, s=28)
@@ -149,18 +182,20 @@ ax.axis("off")
 ax.set_title(f"Cada círculo representa una semana de vida de {nombre}", fontsize=20, pad=20)
 legend_patches = [mpatches.Patch(color=col, label=etapa) for etapa, col in colors.items()]
 ax.legend(handles=legend_patches, loc='lower center', bbox_to_anchor=(0.5, -0.28), ncol=2, fontsize=12, frameon=False)
-#kpi_text = (
-#    f"% de vida vivido: {porcentaje_vivido:.2f}%\n"
-#    f"Fines de semana vividos: {semanas_vividas}\n"
-#    f"Fines de semana restantes: {semanas_restantes}\n"
-#    f"Años restantes: {años_restantes}"
-#)
-#ax.text(1.02, 0.8, kpi_text, transform=ax.transAxes, fontsize=14, va='top', bbox=dict(facecolor='#f5f7fa', alpha=0.9, boxstyle='round,pad=0.5'))
 st.pyplot(fig, use_container_width=True)
 
-# Insights
-st.subheader("Insights sobre tu vida")
-# Insights sobre tu vida
+# Gráfico de barras horizontal acumulado
+fig2, ax2 = plt.subplots(figsize=(10, 2))  # Cambiar la altura a 2 cm
+left = 0
+for etapa, color in zip(fines_semana_por_etapa.keys(), [colors[e] for e in fines_semana_por_etapa.keys()]):
+    ax2.barh([""], [fines_semana_por_etapa[etapa]], left=left, color=color, label=etapa)
+    left += fines_semana_por_etapa[etapa]
+ax2.set_xlabel('Fines de semana vividos')
+ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10, frameon=False)
+fig2.tight_layout()
+st.pyplot(fig2, use_container_width=True)
+
+# Mover el banner dinámico al final
 insights = [
     f"🌟 Ya viviste el {porcentaje_vivido:.2f}% de tu vida. Aún te quedan {años_restantes} años llenos de potencial.",
     f"🎨 Cada punto en tu gráfico es una semana: una historia, una oportunidad. ¿Cómo vas a pintar las siguientes {semanas_restantes} semanas?",
@@ -177,19 +212,26 @@ insights = [
     "📘 Si querés leer 30 libros antes de los 76, solo necesitás uno cada ~1.3 años.",
     f"🕒 Si dedicaras 1 hora semanal a un proyecto personal, en 20 años sumarías más de 1.000 horas."
 ]
-for i in insights:
-    st.markdown(f'<div class="insight-card">{i}</div>', unsafe_allow_html=True)
 
-# Gráfico de barras horizontal acumulado
-st.subheader("Fines de semana vividos por etapa (acumulado)")
-fig2, ax2 = plt.subplots(figsize=(10, 3.5))
-left = 0
-for etapa, color in zip(fines_semana_por_etapa.keys(), [colors[e] for e in fines_semana_por_etapa.keys()]):
-    ax2.barh([""], [fines_semana_por_etapa[etapa]], left=left, color=color, label=etapa)
-    left += fines_semana_por_etapa[etapa]
-ax2.set_xlabel('Fines de semana vividos')
-ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10, frameon=False)
-fig2.tight_layout()
-st.pyplot(fig2, use_container_width=True)
+insight_placeholder = st.empty()
+for insight in insights:
+    insight_placeholder.markdown(f"<div class='insight-banner'>{insight}</div>", unsafe_allow_html=True)
+    time.sleep(5)
+
+# Bloque de depuración para verificar los datos de las gráficas
+st.subheader("Depuración de datos para gráficas")
+st.write("Datos de colores:", color_list[:10])  # Mostrar los primeros 10 colores
+st.write("Coordenadas X:", x[:10])  # Mostrar las primeras 10 coordenadas X
+st.write("Coordenadas Y:", y[:10])  # Mostrar las primeras 10 coordenadas Y
+st.write("Fines de semana por etapa:", fines_semana_por_etapa)
 
 st.caption("Hecho con ❤️ por TimeLeft")
+
+# Redirigir warnings a un buffer desde el inicio
+warnings_buffer = io.StringIO()
+with contextlib.redirect_stderr(warnings_buffer):
+    # Mostrar los warnings capturados al final de la página
+    st.markdown("---")
+    st.subheader("Warnings")
+    st.text("Si hay warnings, aparecerán aquí:")
+    st.text(warnings_buffer.getvalue())
