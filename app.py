@@ -202,6 +202,13 @@ left = 0
 for etapa, color in zip(fines_semana_por_etapa.keys(), [colors[e] for e in fines_semana_por_etapa.keys()]):
     ax2.barh([""], [fines_semana_por_etapa[etapa]], left=left, color=color, label=etapa)
     left += fines_semana_por_etapa[etapa]
+
+# Agregar representación para 'Futuro estimado'
+if "Futuro estimado (37-76)" in fines_semana_por_etapa:
+    semanas_futuro_estimado = etapas["Futuro estimado (37-76)"] - fines_semana_por_etapa["Futuro estimado (37-76)"]
+    if semanas_futuro_estimado > 0:
+        ax2.barh([""], [semanas_futuro_estimado], left=left, color=colors["Futuro estimado (37-76)"], alpha=0.5, label="Futuro estimado restante")
+
 ax2.set_xlabel('Fines de semana vividos')
 ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=10, frameon=False)
 fig2.tight_layout()
