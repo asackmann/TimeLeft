@@ -42,6 +42,16 @@ nombre = st.sidebar.text_input("¿Cuál es tu nombre?", nombre_default, key="sid
 fecha_nacimiento = st.sidebar.date_input("Fecha de nacimiento", fecha_nacimiento_default, key="sidebar_fecha_nacimiento")
 esperanza_vida = st.sidebar.number_input("Esperanza de vida (años)", min_value=1, max_value=120, value=esperanza_vida_default, key="sidebar_esperanza_vida")
 
+# Add a new variable for retirement age
+edad_jubilacion_default = 65
+edad_jubilacion = st.sidebar.number_input(
+    "Edad de jubilación (años)",
+    min_value=1,
+    max_value=120,
+    value=edad_jubilacion_default,
+    key="sidebar_edad_jubilacion"
+)
+
 # --- Sincronizar la URL cuando cambian los inputs ---
 st.experimental_set_query_params(
     nombre=nombre,
@@ -64,8 +74,9 @@ etapas_input = [
     ("De nacimiento a conciencia", 0, 5, "#FFD700"),  # Amarillo (infancia)
     ("Infancia consciente", 5, 18, "#87CEEB"),         # Celeste (niñez/adolescencia)
     ("Universidad y soltería", 18, 24, "#32CD32"),    # Verde (juventud)
-    ("Carrera y noviazgo", 24, 37, "#FF8C00"),        # Naranja (adultez)
-    ("Futuro estimado", 37, esperanza_vida, "#F8F8FF"), # Casi blanco (futuro)
+    ("Carrera y noviazgo", 24, min(edad_jubilacion, 37), "#FF8C00"),        # Naranja (adultez)
+    ("Hasta jubilarse", 37, edad_jubilacion, "#FFA07A"), # Salmón (adultez tardía)
+    ("Post jubilación", edad_jubilacion, esperanza_vida, "#F8F8FF") # Casi blanco (futuro)
 ]
 
 etapas = {}
@@ -184,7 +195,14 @@ kpi_cols[2].metric("Fines de semana restantes", semanas_restantes)
 kpi_cols[3].metric("Años restantes", años_restantes)
 
 # Gráficas al final
-st.subheader("Gráficas")
+#st.subheader("Gráficas")
+# Move the logic to highlight the current week before creating the first graph
+current_week_index = semanas_vividas - 1  # Index of the current week
+highlight_color = "#FF0000"  # Strong red color for highlighting
+
+# Update the color list to highlight the current week
+color_list[current_week_index] = highlight_color
+
 # Gráfica de círculos
 fig = go.Figure()
 fig.add_trace(go.Scatter(
@@ -196,10 +214,12 @@ fig.add_trace(go.Scatter(
     hoverinfo='text'
 ))
 
+# Update layout to reduce margins and maximize the use of space in the first graph
 fig.update_layout(
-    title=f"Cada círculo representa una semana de vida de {nombre}",
+    title=f"Semanas de vida de {nombre}",
     xaxis=dict(showgrid=False, zeroline=False, visible=False),
     yaxis=dict(showgrid=False, zeroline=False, visible=False),
+    margin=dict(l=0, r=0, t=30, b=0),  # Reduce margins to almost zero
     showlegend=False
 )
 st.plotly_chart(fig, use_container_width=True)
@@ -252,6 +272,203 @@ fig2.update_layout(
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
 )
 st.plotly_chart(fig2, use_container_width=True)
+
+# Calcular tiempos en días y horas
+horas_por_dia = 24
+horas_dormir_por_dia = 8
+horas_trabajo_por_dia = 8
+
+dias_totales = total_semanas * 7
+dias_dormidos = (dias_totales * horas_dormir_por_dia) / horas_por_dia
+dias_despiertos = dias_totales - dias_dormidos
+
+# Calcular tiempo trabajando
+if "Carrera y noviazgo (24-37)" in etapas:
+    dias_trabajados = (etapas["Carrera y noviazgo (24-37)"] * 7 * horas_trabajo_por_dia) / horas_por_dia
+else:
+    dias_trabajados = 0
+
+# Tiempo trabajando hasta los 60 años
+edad_actual = (fecha_hoy - fecha_nac_dt).days // 365
+if edad_actual < 60:
+    dias_trabajo_futuro = ((60 - max(edad_actual, 24)) * 365 * horas_trabajo_por_dia) / horas_por_dia
+else:
+    dias_trabajo_futuro = 0
+
+dias_libres = dias_despiertos - (dias_trabajados + dias_trabajo_futuro)
+
+# Crear gráfico de torta para tiempo durmiendo y despierto
+fig_sleep_awake = go.Figure()
+fig_sleep_awake.add_trace(go.Pie(
+    labels=["Durmiendo", "Trabajando", "Tiempo personal"],
+    values=[
+        dias_dormidos,
+        dias_trabajados,
+        dias_despiertos - dias_trabajados
+    ],
+    hole=0.4
+))
+fig_sleep_awake.update_layout(
+    title="Distribución del tiempo: Durmiendo, Trabajando y Tiempo Personal"
+)
+
+# Inicializar variables necesarias basadas en cálculos existentes
+horas_dormidas = dias_dormidos * horas_por_dia
+horas_trabajadas = dias_trabajados * horas_por_dia
+horas_personales = (dias_despiertos * horas_por_dia) - (horas_dormidas + horas_trabajadas)
+
+# Asegurar inicialización de variables necesarias
+horas_trabajo_futuro = (etapas.get("Futuro", 0) * 7 * horas_trabajo_por_dia)
+horas_personales_restantes = (etapas.get("Futuro", 0) * 7 * horas_por_dia) - horas_trabajo_futuro
+
+# Dropdown para seleccionar etapa
+etapa_seleccionada = st.selectbox(
+    "Selecciona una etapa para ver los valores relativos:",
+    ["Total"] + list(etapas.keys()),
+    key="selectbox_etapa"
+)
+
+# Crear gráfico de torta para tiempo restante
+fig_remaining_time = go.Figure()
+fig_remaining_time.add_trace(go.Pie(
+    labels=["Trabajo futuro", "Tiempo personal restante"],
+    values=[
+        horas_trabajo_futuro,
+        horas_personales_restantes
+    ],
+    hole=0.4
+))
+fig_remaining_time.update_layout(
+    title="Distribución del tiempo restante: Trabajo futuro y Tiempo Personal"
+)
+
+# Mostrar gráficos en una línea horizontal
+st.subheader("Gráficos de distribución")
+col1, col2 = st.columns(2)
+
+with col1:
+    # Actualizar el gráfico de torta de horas actuales según la etapa seleccionada
+    if etapa_seleccionada == "Total":
+        horas_dormidas_etapa = horas_dormidas
+        horas_trabajadas_etapa = horas_trabajadas
+        horas_personales_etapa = horas_personales
+
+        fig_sleep_awake = go.Figure()
+        fig_sleep_awake.add_trace(go.Pie(
+            labels=["Durmiendo", "Trabajando", "Tiempo personal"],
+            values=[
+                horas_dormidas_etapa,
+                horas_trabajadas_etapa,
+                horas_personales_etapa
+            ],
+            hole=0.4
+        ))
+        fig_sleep_awake.update_layout(
+            title="Distribución del tiempo: Durmiendo, Trabajando y Tiempo Personal"
+        )
+    else:
+        semanas_etapa = etapas[etapa_seleccionada]
+        horas_dormidas_etapa = semanas_etapa * 7 * horas_dormir_por_dia
+        horas_trabajadas_etapa = semanas_etapa * 7 * horas_trabajo_por_dia
+        horas_personales_etapa = (semanas_etapa * 7 * horas_por_dia) - (horas_dormidas_etapa + horas_trabajadas_etapa)
+
+        fig_sleep_awake = go.Figure()
+        fig_sleep_awake.add_trace(go.Pie(
+            labels=["Durmiendo", "Trabajando", "Tiempo personal"],
+            values=[
+                horas_dormidas_etapa,
+                horas_trabajadas_etapa,
+                horas_personales_etapa
+            ],
+            hole=0.4
+        ))
+        fig_sleep_awake.update_layout(
+            title=f"Distribución del tiempo relativo a la etapa: {etapa_seleccionada}"
+        )
+
+    st.plotly_chart(fig_sleep_awake, use_container_width=True, key="plotly_chart_sleep_awake")
+
+with col2:
+    # Mantener el gráfico de torta de tiempo restante estático
+    st.plotly_chart(fig_remaining_time, use_container_width=True, key="plotly_chart_remaining_time")
+
+# Mostrar tablas con horas
+st.subheader("Distribución de horas")
+col1, col2 = st.columns(2)
+
+# Botón para elegir entre total o etapa específica
+etapa_seleccionada = st.selectbox(
+    "Selecciona una etapa para ver los valores relativos:",
+    ["Total"] + list(etapas.keys()),
+    key="selectbox_etapa_tabla"
+)
+
+if etapa_seleccionada == "Total":
+    divisor = 1
+    titulo_tabla = "Valores totales"
+    horas_dormidas_etapa = horas_dormidas
+    horas_trabajadas_etapa = horas_trabajadas
+    horas_personales_etapa = horas_personales
+else:
+    divisor = etapas[etapa_seleccionada] * 7 * horas_por_dia
+    titulo_tabla = f"Valores relativos a la etapa: {etapa_seleccionada}"
+    semanas_etapa = etapas[etapa_seleccionada]
+    horas_dormidas_etapa = semanas_etapa * 7 * horas_dormir_por_dia
+    horas_trabajadas_etapa = semanas_etapa * 7 * horas_trabajo_por_dia
+    horas_personales_etapa = (semanas_etapa * 7 * horas_por_dia) - (horas_dormidas_etapa + horas_trabajadas_etapa)
+
+# Actualizar tabla de "Horas actuales" con valores dinámicos
+with col1:
+    st.markdown(f"### {titulo_tabla} - Horas actuales")
+    st.table(pd.DataFrame({
+        "Categoría": ["Durmiendo", "Trabajando", "Tiempo personal"],
+        "Horas": [
+            f"{int(horas_dormidas_etapa):,}".replace(",", "."),
+            f"{int(horas_trabajadas_etapa):,}".replace(",", "."),
+            f"{int(horas_personales_etapa):,}".replace(",", ".")
+        ],
+        "%": [
+            f"{(horas_dormidas_etapa / divisor * 100):.2f}%" if divisor > 1 else "-",
+            f"{(horas_trabajadas_etapa / divisor * 100):.2f}%" if divisor > 1 else "-",
+            f"{(horas_personales_etapa / divisor * 100):.2f}%" if divisor > 1 else "-"
+        ]
+    }))
+
+with col2:
+    st.markdown(f"### {titulo_tabla} - Horas restantes")
+    st.table(pd.DataFrame({
+        "Categoría": ["Trabajo futuro", "Tiempo personal restante"],
+        "Horas": [f"{int(horas_trabajo_futuro):,}".replace(",", "."), f"{int(horas_personales_restantes):,}".replace(",", ".")],
+        "%": [
+            f"{(horas_trabajo_futuro / divisor * 100):.2f}%" if divisor > 1 else "-",
+            f"{(horas_personales_restantes / divisor * 100):.2f}%" if divisor > 1 else "-"
+        ]
+    }))
+
+# Actualizar gráfico de torta "Distribución del tiempo" dinámicamente
+fig_sleep_awake = go.Figure()
+fig_sleep_awake.add_trace(go.Pie(
+    labels=["Durmiendo", "Trabajando", "Tiempo personal"],
+    values=[
+        horas_dormidas_etapa / horas_por_dia,
+        horas_trabajadas_etapa / horas_por_dia,
+        horas_personales_etapa / horas_por_dia
+    ],
+    hole=0.4
+))
+fig_sleep_awake.update_layout(
+    title="Distribución del tiempo: Durmiendo, Trabajando y Tiempo Personal"
+)
+
+# Mostrar gráficos en una línea horizontal
+st.subheader("Gráficos de distribución")
+col1, col2 = st.columns(2)
+
+with col1:
+    st.plotly_chart(fig_sleep_awake, use_container_width=True, key="plotly_chart_sleep_awake_2")
+
+with col2:
+    st.plotly_chart(fig_remaining_time, use_container_width=True, key="plotly_chart_remaining_time_2")
 
 # Mostrar los insights como una lista estática
 insights = [
