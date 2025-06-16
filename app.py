@@ -15,6 +15,9 @@ import random
 #st.set_option('deprecation.showWarningOnDirectExecution', False)
 
 
+# --- Definir un valor seguro para esperanza de vida por defecto ---
+ESPERANZA_VIDA_DEFAULT = 76
+
 def calcular_semanas(fecha_inicio, fecha_fin):
     return max(0, (fecha_fin - fecha_inicio).days // 7)
 
@@ -193,9 +196,11 @@ try:
 except Exception:
     fecha_nacimiento_default = datetime(1988, 5, 19).date()
 try:
-    esperanza_vida_default = int(esperanza_vida_url) if esperanza_vida_url else 76
+    esperanza_vida_default = int(esperanza_vida_url) if esperanza_vida_url else ESPERANZA_VIDA_DEFAULT
 except Exception:
-    esperanza_vida_default = 76
+    esperanza_vida_default = ESPERANZA_VIDA_DEFAULT
+
+ 
 
 # Sidebar para inputs (usando valores iniciales)
 st.sidebar.header("Configura tus datos")
@@ -215,17 +220,58 @@ edad_jubilacion = st.sidebar.number_input(
 
 esperanza_vida = st.sidebar.number_input("Esperanza de vida (años)", min_value=1, max_value=120, value=esperanza_vida_default, key="sidebar_esperanza_vida")
 
-tiempo_libre_diario = st.sidebar.slider("Horas promedio de tiempo personal por día", 0.0, 16.0, 4.0, 0.5)
+# Agregar sliders sincronizados para horas de dormir, trabajo y tiempo personal
+st.sidebar.header("Configura tu distribución diaria de tiempo")
 
-# --- Sincronizar la URL cuando cambian los inputs ---
-st.experimental_set_query_params(
-    nombre=nombre,
-    fecha_nacimiento=fecha_nacimiento.strftime("%Y-%m-%d"),
-    esperanza_vida=str(esperanza_vida)
+# Inicializar valores
+horas_totales_dia = 24
+
+# Sliders sincronizados
+horas_dormir_por_dia = st.sidebar.slider(
+    "Horas de dormir por día",
+    min_value=4,
+    max_value=12,
+    value=7,
+    step=1,
+    key="slider_horas_dormir"
 )
 
-fecha_hoy = datetime.today()
+horas_trabajo_por_dia = st.sidebar.slider(
+    "Horas de trabajo por día",
+    min_value=4,  # Mínimo de horas
+    max_value=12,  # Máximo de horas
+    value=8,
+    step=1,
+    key="slider_horas_trabajo"
+) 
 
+
+horas_trabajo_semanales = horas_trabajo_por_dia * 5  # Asumiendo 5 días laborales
+
+# Calcular promedio diario de horas laborales
+#horas_trabajo_por_dia = horas_trabajo_semanales / 7
+
+# Calcular automáticamente las horas de tiempo personal para días hábiles
+horas_tiempo_personal_habiles = 24 - horas_dormir_por_dia - int(horas_trabajo_por_dia)
+
+# Mostrar el valor calculado en la barra lateral
+st.sidebar.markdown(f"**Dormir:** {horas_dormir_por_dia} horas")
+st.sidebar.markdown(f"**Jornada laboral:** {horas_trabajo_por_dia} horas")
+st.sidebar.markdown(f"**Tiempo personal diario:** {horas_tiempo_personal_habiles} horas")
+
+# Validar que las horas de tiempo personal no sean negativas
+if horas_tiempo_personal_habiles < 2:
+    st.sidebar.error("Tiempo personal diario no pueden ser menos de dos. Ajusta las horas de dormir o trabajo.")
+
+
+# Reorganizar cálculos para resolver dependencias
+
+
+
+
+
+# Calcular semanas totales y semanas vividas
+fecha_hoy = datetime.today()
 # Convertir fecha_nacimiento a datetime.datetime si es date
 if isinstance(fecha_nacimiento, datetime):
     fecha_nac_dt = fecha_nacimiento
@@ -233,28 +279,66 @@ else:
     fecha_nac_dt = datetime.combine(fecha_nacimiento, datetime.min.time())
 
 fecha_muerte_estimada = datetime(fecha_nac_dt.year + esperanza_vida, fecha_nac_dt.month, fecha_nac_dt.day)
-
 # Convertir fecha_nacimiento a datetime para que coincida con fecha_muerte
 fecha_nacimiento = datetime.combine(fecha_nacimiento, datetime.min.time())
+semanas_totales = (fecha_muerte_estimada - fecha_nacimiento).days // 7
+semanas_vividas = ((fecha_hoy - fecha_nacimiento).days) // 7
 
-# Etapas y colores
-etapas_input = [
-    ("De nacimiento a conciencia", 0, 5, "#FFD700"),  # Amarillo (infancia)
-    ("Infancia consciente", 5, 18, "#87CEEB"),         # Celeste (niñez/adolescencia)
-    ("Universidad y soltería", 18, 24, "#32CD32"),    # Verde (juventud)
-    ("Carrera y noviazgo", 24, min(edad_jubilacion, 37), "#FF8C00"),        # Naranja (adultez)
-    ("Hasta jubilarse", 37, edad_jubilacion, "#FFA07A"), # Salmón (adultez tardía)
-    ("Post jubilación", edad_jubilacion, esperanza_vida, "#F8F8FF") # Casi blanco (futuro)
-]
+# Calcular semanas restantes
+semanas_restantes = semanas_totales - semanas_vividas
 
-# Ajustar las claves de las etapas para que no incluyan las edades
+# Calcular horas de trabajo semanales y promedio diario
+horas_trabajo_semanales = horas_trabajo_por_dia * 5
+horas_trabajo_por_dia_promedio = horas_trabajo_semanales / 7
+
+# Calcular horas de tiempo personal para días hábiles
+horas_tiempo_personal_habiles = 24 - horas_dormir_por_dia - int(horas_trabajo_por_dia)
+
+# Validar que las horas de tiempo personal no sean negativas
+if horas_tiempo_personal_habiles < 2:
+    st.sidebar.error("Tiempo personal diario no puede ser menos de dos. Ajusta las horas de dormir o trabajo.")
+
+# Calcular horas libres por semana considerando fines de semana
+tiempo_libre_diario = 4  # Valor predeterminado en horas por día
+horas_libres_por_semana = horas_tiempo_personal_habiles * 5 + tiempo_libre_diario * 2
+
+# Calcular horas restantes y días libres estimados
+horas_restantes = horas_libres_por_semana * semanas_restantes
+dias_libres_estimados = horas_restantes // 24
+
+# Calcular porcentaje vivido y años restantes
+porcentaje_vivido = min(100, (semanas_vividas / semanas_totales) * 100)
+años_restantes = max(0, (fecha_muerte_estimada - fecha_hoy).days // 365)
+
+
+
+# Inicializar etapas y colores si no están definidos
+if 'etapas' not in locals():
+    etapas = {}
+if 'colors' not in locals():
+    colors = {}
+
+# Asegurar inicialización de variables necesarias antes de su uso
+
+# Inicializar etapas y colores
 etapas = {}
 colors = {}
+
+# Crear DataFrame de etapas antes de su uso
+etapas_input = [
+    ("De nacimiento a conciencia", 0, 5, "#FFD700"),
+    ("Infancia consciente", 5, 18, "#87CEEB"),
+    ("Universidad y soltería", 18, 24, "#32CD32"),
+    ("Carrera y noviazgo", 24, min(edad_jubilacion, 37), "#FF8C00"),
+    ("Hasta jubilarse", 37, edad_jubilacion, "#FFA07A"),
+    ("Post jubilación", edad_jubilacion, esperanza_vida, "#F8F8FF")
+]
+
 for nombre_etapa, edad_ini, edad_fin, color in etapas_input:
-    fecha_ini = max(fecha_nac_dt, datetime(fecha_nac_dt.year + edad_ini, fecha_nac_dt.month, fecha_nac_dt.day))
-    fecha_fin = min(datetime(fecha_nac_dt.year + edad_fin, fecha_nac_dt.month, fecha_nac_dt.day), fecha_muerte_estimada)
+    fecha_ini = max(fecha_nacimiento, datetime(fecha_nacimiento.year + edad_ini, fecha_nacimiento.month, fecha_nacimiento.day))
+    fecha_fin = min(datetime(fecha_nacimiento.year + edad_fin, fecha_nacimiento.month, fecha_nacimiento.day), fecha_muerte_estimada)
     semanas = max(0, (fecha_fin - fecha_ini).days // 7)
-    etapas[nombre_etapa] = semanas  # Usar solo el nombre de la etapa como clave
+    etapas[nombre_etapa] = semanas
     colors[nombre_etapa] = color
 
 df = pd.DataFrame.from_dict(etapas, orient="index", columns=["Semanas"])
@@ -262,22 +346,10 @@ total_semanas = df["Semanas"].sum()
 df["Porcentaje"] = (df["Semanas"] / total_semanas * 100).round(2)
 df["Porcentaje acumulado"] = df["Porcentaje"].cumsum().round(2)
 
-# Colores por semana
-total_weeks = int(df["Semanas"].sum())
-color_list = []
-for etapa, row in df.iterrows():
-    color_list.extend([colors[etapa]] * int(row["Semanas"]))
+# Inicializar fecha_nac_dt
+fecha_nac_dt = datetime.combine(fecha_nacimiento, datetime.min.time())
 
-cols = 100
-rows = (total_weeks // cols) + 1
-x = np.tile(np.arange(cols), rows)[:total_weeks]
-y = np.repeat(np.arange(rows), cols)[:total_weeks]
 
-# KPIs
-semanas_vividas = ((fecha_hoy - datetime.combine(fecha_nacimiento, datetime.min.time())).days) // 7
-semanas_restantes = total_semanas - semanas_vividas
-porcentaje_vivido = min(100, (semanas_vividas / total_semanas) * 100)
-años_restantes = max(0, (fecha_muerte_estimada - fecha_hoy).days // 365)
 
 # Fines de semana vividos por etapa
 fines_semana_por_etapa = {}
@@ -363,139 +435,8 @@ fecha_muerte = fecha_muerte_estimada
 semanas_totales = (fecha_muerte - fecha_nacimiento).days // 7
 dias_vividos = (fecha_hoy - fecha_nacimiento).days
 
-horas_libres_por_semana = tiempo_libre_diario * 7
-horas_restantes = horas_libres_por_semana * semanas_restantes
-dias_libres_estimados = horas_restantes // 24
-  
-# --- KPIs ---
-st.subheader("Resumen actual de tu vida") 
-# KPIs en una única línea
-kpi_cols = st.columns(5)
-kpi_cols[0].metric("% vivido", f"{porcentaje_vivido:.2f}%")
-kpi_cols[1].metric("Días vividos", f"{dias_vividos:,}".replace(",", ".") )
-kpi_cols[2].metric("Semanas vividas", f"{semanas_vividas:,}".replace(",", "."))
-kpi_cols[3].metric("Semanas restantes", f"{semanas_restantes:,}".replace(",", "."))
-kpi_cols[4].metric("Años restantes", f"{años_restantes:,}".replace(",", "."))
-st.info(f"🌟 Ya viviste el {(semanas_vividas/semanas_totales)*100:.2f}% de tu vida. Aún te quedan {semanas_restantes} semanas.")
-
-# --- Insights simples ---
-
-# Gráficas al final
-#st.subheader("Gráficas")
-# Move the logic to highlight the current week before creating the first graph
-current_week_index = semanas_vividas - 1  # Index of the current week
-highlight_color = "#FF0000"  # Strong red color for highlighting
-
-# Update the color list to highlight the current week
-color_list[current_week_index] = highlight_color
-
-# Gráfica de círculos
-fig = go.Figure()
-fig.add_trace(go.Scatter(
-    x=x,
-    y=-y,
-    mode='markers',
-    marker=dict(size=6, color=color_list, opacity=0.8),
-    text=[f"Semana {i+1}" for i in range(len(x))],
-    hoverinfo='text'
-))
-
-# Update layout to reduce margins and maximize the use of space in the first graph
-fig.update_layout(
-    
-    xaxis=dict(showgrid=False, zeroline=False, visible=False),
-    yaxis=dict(showgrid=False, zeroline=False, visible=False),
-    margin=dict(l=0, r=0, t=30, b=0),  # Reduce margins to almost zero
-    showlegend=False
-)
-
-# Gráfico de barras horizontal acumulado interactivo con Plotly
-fig2 = go.Figure()
-left = 0
-for etapa, color in zip(fines_semana_por_etapa.keys(), [colors[e] for e in fines_semana_por_etapa.keys()]):
-    porcentaje = df.loc[etapa, "Porcentaje"]
-    porcentaje_acumulado = df.loc[etapa, "Porcentaje acumulado"]
-    # Actualizar el tooltip para mostrar el valor real de 'x' en 'Semanas vividas'
-    fig2.add_trace(go.Bar(
-        y=[""],
-        x=[fines_semana_por_etapa[etapa]],
-        name=etapa,
-        orientation='h',
-        marker=dict(color=color),
-        hovertemplate=(
-            f"<b>{etapa}</b><br>"
-            f"Semanas vividas: {fines_semana_por_etapa[etapa]}<br>"
-            f"Porcentaje: {porcentaje:.2f}%<br>"
-            f"Porcentaje acumulado: {porcentaje_acumulado:.2f}%<extra></extra>"
-        )
-    ))
-    left += fines_semana_por_etapa[etapa]
-
-# Actualizar los tooltips para mostrar el valor de 'x' en 'Semanas restantes'
-fig2.add_trace(go.Scatter(
-    y=[""],
-    x=[semanas_vividas],
-    mode="markers",
-    marker=dict(size=12, color="red", symbol="diamond"),
-    name="Semana actual",
-    hovertemplate=f"<b>Semana actual</b><br>Semanas vividas: {semanas_vividas}<extra></extra>"
-))
-
-if "Hasta jubilarse" in fines_semana_por_etapa:
-    semanas_hasta_jubilarse = etapas["Hasta jubilarse"] - fines_semana_por_etapa["Hasta jubilarse"]
-    if semanas_hasta_jubilarse > 0:
-        porcentaje = (semanas_hasta_jubilarse / total_semanas) * 100
-        porcentaje_acumulado = df.loc["Hasta jubilarse", "Porcentaje acumulado"]
-        fig2.add_trace(go.Bar(
-            y=[""],
-            x=[semanas_hasta_jubilarse],
-            name="Hasta jubilarse restante",
-            orientation='h',
-            marker=dict(color=colors["Hasta jubilarse"], opacity=0.5),
-            hovertemplate=(
-                f"<b>Hasta jubilarse restante</b><br>"
-                f"Semanas restantes: {semanas_hasta_jubilarse}<br>"
-                f"Porcentaje: {porcentaje:.2f}%<br>"
-                f"Porcentaje acumulado: {porcentaje_acumulado:.2f}%<extra></extra>"
-            )
-        ))
-
-if "Post jubilación" in fines_semana_por_etapa:
-    semanas_post_jubilacion = etapas["Post jubilación"] - fines_semana_por_etapa["Post jubilación"]
-    if semanas_post_jubilacion > 0:
-        porcentaje = (semanas_post_jubilacion / total_semanas) * 100
-        porcentaje_acumulado = df.loc["Post jubilación", "Porcentaje acumulado"]
-        fig2.add_trace(go.Bar(
-            y=[""],
-            x=[semanas_post_jubilacion],
-            name="Post jubilación restante",
-            orientation='h',
-            marker=dict(color=colors["Post jubilación"], opacity=0.5),
-            hovertemplate=(
-                f"<b>Post jubilación restante</b><br>"
-                f"Semanas restantes: {semanas_post_jubilacion}<br>"
-                f"Porcentaje: {porcentaje:.2f}%<br>"
-                f"Porcentaje acumulado: {porcentaje_acumulado:.2f}%<extra></extra>"
-            )
-        ))
-
-fig2.update_layout(
-    barmode='stack',
-    xaxis_title='Fines de semanas vividos',
-    showlegend=True,
-    legend=dict(
-        orientation="h",
-        yanchor="bottom",
-        y=1.02,
-        xanchor="left",  # Cambiar a 'left' para ordenar cronológicamente
-        x=0
-    ),
-    height=200  # Establecer una altura fija más baja para el gráfico
-)
-
-# Swap the display order of the two graphs so that fig2 appears first
-st.plotly_chart(fig2, use_container_width=True)
-st.plotly_chart(fig, use_container_width=True)
+# Validar que total_semanas esté inicializado correctamente
+total_semanas = semanas_totales
 
 # Calcular tiempos en días y horas
 horas_por_dia = 24
@@ -519,7 +460,15 @@ if edad_actual < 60:
 else:
     dias_trabajo_futuro = 0
 
-dias_libres = dias_despiertos - (dias_trabajados + dias_trabajo_futuro)
+# Asegurar inicialización de variables necesarias
+horas_trabajo_futuro = (etapas.get("Futuro", 0) * 7 * horas_trabajo_por_dia)
+horas_personales_restantes = (etapas.get("Futuro", 0) * 7 * horas_por_dia) - horas_trabajo_futuro
+
+# Calcular días libres
+if dias_despiertos > (dias_trabajados + dias_trabajo_futuro):
+    dias_libres = dias_despiertos - (dias_trabajados + dias_trabajo_futuro)
+else:
+    dias_libres = 0
 
 # Crear gráfico de torta para tiempo durmiendo y despierto
 fig_sleep_awake = go.Figure()
@@ -547,6 +496,16 @@ horas_personales_restantes = (etapas.get("Futuro", 0) * 7 * horas_por_dia) - hor
 
 
 
+# --- KPIs ---
+st.subheader("Resumen actual de tu vida") 
+# KPIs en una única línea
+kpi_cols = st.columns(5)
+kpi_cols[0].metric("% vivido", f"{porcentaje_vivido:.2f}%")
+kpi_cols[1].metric("Días vividos", f"{dias_vividos:,}".replace(",", ".") )
+kpi_cols[2].metric("Semanas vividas", f"{semanas_vividas:,}".replace(",", "."))
+kpi_cols[3].metric("Semanas restantes", f"{semanas_restantes:,}".replace(",", "."))
+kpi_cols[4].metric("Años restantes", f"{años_restantes:,}".replace(",", "."))
+st.info(f"🌟 Ya viviste el {(semanas_vividas/semanas_totales)*100:.2f}% de tu vida. Aún te quedan {semanas_restantes} semanas.")
 
 # --- Tiempo personal proyectado ---
 st.subheader("Tu tiempo personal disponible (proyección futura)")
@@ -659,6 +618,5 @@ st.markdown("</ul>", unsafe_allow_html=True)
  
 
 st.caption("Hecho con ❤️ por TimeLeft")
-
 
 
