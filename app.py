@@ -545,10 +545,12 @@ col1, col2 = st.columns(2)
 with col1:
     # Actualizar el gráfico de torta de horas actuales según la etapa seleccionada
     if etapa_seleccionada == "Total":
-        horas_dormidas_etapa = horas_dormidas
-        horas_trabajadas_etapa = horas_trabajadas
-        horas_personales_etapa = horas_personales
+        # Recalcular las horas totales correctamente
+        horas_dormidas_etapa = dias_dormidos * horas_por_dia
+        horas_trabajadas_etapa = dias_trabajados * horas_por_dia
+        horas_personales_etapa = (dias_despiertos * horas_por_dia) - (horas_dormidas_etapa + horas_trabajadas_etapa)
 
+        # Crear el gráfico actualizado
         fig_sleep_awake = go.Figure()
         fig_sleep_awake.add_trace(go.Pie(
             labels=["Durmiendo", "Trabajando", "Tiempo personal"],
