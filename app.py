@@ -8,11 +8,35 @@ from datetime import datetime
 st.set_page_config(page_title="TimeLeft - Visualiza tu vida", layout="wide")
 st.title("⏳ TimeLeft: Visualiza tu vida en semanas")
 
-# Sidebar para inputs
+# --- Leer parámetros de la URL si existen ---
+query_params = st.experimental_get_query_params()
+nombre_url = query_params.get("nombre", [None])[0]
+fecha_nacimiento_url = query_params.get("fecha_nacimiento", [None])[0]
+esperanza_vida_url = query_params.get("esperanza_vida", [None])[0]
+
+# --- Definir valores iniciales según URL o por defecto ---
+nombre_default = nombre_url if nombre_url else "Agustín"
+try:
+    fecha_nacimiento_default = datetime.strptime(fecha_nacimiento_url, "%Y-%m-%d").date() if fecha_nacimiento_url else datetime(1988, 5, 19).date()
+except Exception:
+    fecha_nacimiento_default = datetime(1988, 5, 19).date()
+try:
+    esperanza_vida_default = int(esperanza_vida_url) if esperanza_vida_url else 76
+except Exception:
+    esperanza_vida_default = 76
+
+# Sidebar para inputs (usando valores iniciales)
 st.sidebar.header("Configura tus datos")
-nombre = st.sidebar.text_input("¿Cuál es tu nombre?", "Agustín")
-fecha_nacimiento = st.sidebar.date_input("Fecha de nacimiento", datetime(1988, 5, 19))
-esperanza_vida = st.sidebar.number_input("Esperanza de vida (años)", min_value=1, max_value=120, value=76)
+nombre = st.sidebar.text_input("¿Cuál es tu nombre?", nombre_default, key="sidebar_nombre")
+fecha_nacimiento = st.sidebar.date_input("Fecha de nacimiento", fecha_nacimiento_default, key="sidebar_fecha_nacimiento")
+esperanza_vida = st.sidebar.number_input("Esperanza de vida (años)", min_value=1, max_value=120, value=esperanza_vida_default, key="sidebar_esperanza_vida")
+
+# --- Sincronizar la URL cuando cambian los inputs ---
+st.query_params = {
+    "nombre": nombre,
+    "fecha_nacimiento": fecha_nacimiento.strftime("%Y-%m-%d"),
+    "esperanza_vida": str(esperanza_vida)
+}
 
 fecha_hoy = datetime.today()
 
