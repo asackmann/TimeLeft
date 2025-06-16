@@ -385,26 +385,40 @@ st.markdown("""
         margin: auto;
     }
     .kpi-card {
-        background: #f5f7fa;
+        background: #1e1e1e; /* Dark background */
         border-radius: 12px;
         padding: 1.5rem 1rem;
         margin-bottom: 1rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         text-align: center;
+        color: #ffffff; /* Light text for contrast */
     }
     .insight-card {
-        background: #fff;
+        background: #2a2a2a; /* Slightly lighter dark */
         border-radius: 10px;
         padding: 1rem 1.5rem;
         margin-bottom: 0.7rem;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
         font-size: 1.1rem;
+        color: #ffffff;
     }
     .stMetric {
-        background: #f5f7fa;
+        background: #1e1e1e; /* Dark background for KPIs */
         border-radius: 10px;
-        padding: 0.5rem 0.5rem;
-        margin-bottom: 0.5rem;
+        padding: 1rem; /* Increase padding for better spacing */
+        margin-bottom: 1rem;
+        color: #ffffff; /* Light text for contrast */
+        box-shadow: 0 2px 6px rgba(0,0,0,0.4); /* Enhanced shadow for depth */
+        border: 1px solid #444444; /* Subtle border for separation */
+    }
+    .stMetric label {
+        font-size: 1.2rem; /* Slightly larger font for labels */
+        color: #cccccc; /* Softer text color for labels */
+    }
+    .stMetric div[data-testid="stMetricValue"] {
+        font-size: 2rem; /* Larger font for metric values */
+        font-weight: bold; /* Emphasize the value */
+        color: #ffffff; /* Ensure value is bright and visible */
     }
     .kpi-row {
         display: flex;
@@ -413,32 +427,68 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
     .insight-banner {
-        background: #e1f5fe;
+        background: #3a3a3a; /* Dark gray for highlights */
         border-radius: 10px;
         padding: 1rem;
         margin-bottom: 1.5rem;
         font-size: 1.2rem;
         text-align: center;
         transition: background 0.5s;
+        color: #ffffff;
     }
     .insight-banner:nth-child(odd) {
-        background: #fff3e0;
+        background: #4a4a4a; /* Slightly lighter dark gray for alternates */
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Agregar estilo CSS para ocultar los divs de advertencias
-# st.markdown(
-#     """
-#     <style>
-#     div[data-testid="stAlert"] {
-#         display: none !important;
-#     }
-#     </style>
-#     """,
-#     unsafe_allow_html=True
-# )
+# Add JavaScript to detect dark or light mode
+st.markdown(
+    """
+    <script>
+    const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const root = document.documentElement;
+    if (prefersDarkMode) {
+        root.style.setProperty('--background-secondary', '#2c2f33');
+        root.style.setProperty('--text-primary', '#ffffff');
+        root.style.setProperty('--background-highlight', '#4a90e2');
+        root.style.setProperty('--background-highlight-alt', '#f5a623');
+    } else {
+        root.style.setProperty('--background-secondary', '#f5f7fa');
+        root.style.setProperty('--text-primary', '#000000');
+        root.style.setProperty('--background-highlight', '#e1f5fe');
+        root.style.setProperty('--background-highlight-alt', '#fff3e0');
+    }
+    </script>
+    """,
+    unsafe_allow_html=True
+)
 
+
+
+# Force dark mode using custom CSS
+st.markdown(
+    """
+    <style>
+    /* Apply dark mode styles globally */
+    html, body, [class*="css"] {
+        background-color: #0e1117 !important; /* Dark background */
+        color: #ffffff !important; /* Light text */
+    }
+    .stButton > button {
+        background-color: #1e1e1e !important; /* Dark button background */
+        color: #ffffff !important; /* Light button text */
+        border: 1px solid #ffffff !important; /* Button border */
+    }
+    .stTextInput > div > input {
+        background-color: #1e1e1e !important; /* Dark input background */
+        color: #ffffff !important; /* Light input text */
+        border: 1px solid #ffffff !important; /* Input border */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 
 # --- Cálculos base --- 
@@ -511,22 +561,6 @@ horas_personales_restantes = (etapas.get("Futuro", 0) * 7 * horas_por_dia) - hor
 # --- KPIs ---
 st.subheader("Resumen actual de tu vida") 
 
-
-# KPIs en una única línea
-kpi_cols = st.columns(5)
-kpi_cols[0].metric("% vivido", f"{porcentaje_vivido:.2f}%")
-kpi_cols[1].metric("Días vividos", f"{dias_vividos:,}".replace(",", ".") )
-kpi_cols[2].metric("Semanas vividas", f"{semanas_vividas:,}".replace(",", "."))
-kpi_cols[3].metric("Semanas restantes", f"{semanas_restantes:,}".replace(",", "."))
-kpi_cols[4].metric("Años restantes", f"{años_restantes:,}".replace(",", "."))
-st.info(f"🌟 Ya viviste el {(semanas_vividas/semanas_totales)*100:.2f}% de tu vida. Aún te quedan {semanas_restantes} semanas.")
-
-
-
-grafico_barras = crear_grafico_barras_acumulado(etapas, colors, semanas_vividas)
-st.plotly_chart(grafico_barras, use_container_width=True)
-
-
 etapas_ordenadas = list(etapas.keys())
 semana_actual_acumulada = 0
 etapa_actual = None
@@ -541,30 +575,53 @@ if etapa_actual:
     semanas_inicio_etapa = semana_actual_acumulada - etapas[etapa_actual]
     semanas_restantes_en_etapa = max(0, semana_actual_acumulada - semanas_vividas)
     dias_restantes_en_etapa = semanas_restantes_en_etapa * 7
-    st.success(f"Estás actualmente en la etapa **'{etapa_actual}'**. Te quedan **{semanas_restantes_en_etapa} semanas** (unos **{dias_restantes_en_etapa} días**) en esta etapa.") 
+    st.success(f"**Semana número {semanas_vividas:,}**, actualmente en la etapa **'{etapa_actual}'**. Te quedan **{semanas_restantes_en_etapa} semanas** (unos **{dias_restantes_en_etapa} días**) en esta etapa.") 
+
+
+# KPIs en una única línea
+kpi_cols = st.columns(5)
+kpi_cols[0].metric("% vivido", f"{porcentaje_vivido:.2f}%")
+kpi_cols[1].metric("Días vividos", f"{dias_vividos:,}".replace(",", ".") )
+kpi_cols[2].metric("Semanas vividas", f"{semanas_vividas:,}".replace(",", "."))
+kpi_cols[3].metric("Semanas restantes", f"{semanas_restantes:,}".replace(",", "."))
+kpi_cols[4].metric("Años restantes", f"{años_restantes:,}".replace(",", "."))
+
+# Insights dinámicos 
+insights = [
+    f"🌟 Ya viviste el {porcentaje_vivido:.2f}% de tu vida. Aún te quedan {años_restantes} años llenos de potencial.",
+    f"🎨 Cada punto en tu gráfico es una semana: una historia, una oportunidad. ¿Cómo vas a pintar las siguientes {semanas_restantes} semanas?",
+    f"⌛ Si te quedan {semanas_restantes} semanas, ¿cuántas dedicarás a lo verdaderamente importante?",
+    f"📅 Viviste más de {dias_vividos} días desde que naciste.",
+    f"🌕 Sobreviviste a unas {dias_vividos // 29} lunas llenas.",
+    f"😴 Estuviste despierto unos {(dias_vividos * 16) // 24} días completos (si dormiste 8 hs por día).",
+    f"🍃 Disfrutaste al menos {semanas_vividas // 1} fines de semana: más de {semanas_vividas * 2} días de descanso."
+]
+
+# Seleccionar 2 insights aleatorios
+insights_random = random.sample(insights, 2) 
+for insight in insights_random:
+    st.info(f"{insight}") 
+ 
+
+
+
+grafico_barras = crear_grafico_barras_acumulado(etapas, colors, semanas_vividas)
+st.plotly_chart(grafico_barras, use_container_width=True)
 
 
 
 
-# Restaurar gráfico de círculos para semanas de vida
-st.subheader("🟢 Tu vida en semanas (visualización estilo 'The Tail End')")
+
+# Restaurar gráfico de círculos para semanas de vida 
 cols = 52
 rows = semanas_totales // cols + 1
-
 x = np.tile(np.arange(cols), rows)
 y = np.repeat(np.arange(rows), cols)
 colors_circulos = ["#F0F0F0"] * semanas_totales
 for i in range(semanas_vividas):
     colors_circulos[i] = "#1f77b4"  # azul para semanas vividas
-
 fig_circulos = crear_grafico_circulos(x[:semanas_totales], y[:semanas_totales], colors_circulos, semanas_vividas - 1)
 st.plotly_chart(fig_circulos, use_container_width=True)
-
-
-
-# Sección: Semana actual absoluta desde nacimiento
-st.subheader("📆 Tu semana actual")
-st.success(f"Estás transitando la **semana número {semanas_vividas:,}** de tu vida.")
 
 # --- Tiempo personal proyectado ---
 st.subheader("Tu tiempo personal disponible (proyección futura)")
@@ -650,29 +707,78 @@ with col2:
     st.plotly_chart(fig_remaining_time, use_container_width=True, key="plotly_chart_remaining_time")
  
 
-# Insights dinámicos 
-insights = [
-    f"🌟 Ya viviste el {porcentaje_vivido:.2f}% de tu vida. Aún te quedan {años_restantes} años llenos de potencial.",
-    f"🎨 Cada punto en tu gráfico es una semana: una historia, una oportunidad. ¿Cómo vas a pintar las siguientes {semanas_restantes} semanas?",
-    f"⌛ Si te quedan {semanas_restantes} semanas, ¿cuántas dedicarás a lo verdaderamente importante?",
-    f"📅 Viviste más de {dias_vividos} días desde que naciste.",
-    f"🌕 Sobreviviste a unas {dias_vividos // 29} lunas llenas.",
-    f"😴 Estuviste despierto unos {(dias_vividos * 16) // 24} días completos (si dormiste 8 hs por día).",
-    f"🍃 Disfrutaste al menos {semanas_vividas // 1} fines de semana: más de {semanas_vividas * 2} días de descanso."
-]
-
-# Seleccionar 3 insights aleatorios
-insights_random = random.sample(insights, 3)
-
-st.subheader("Insights")
-st.markdown("<ul>", unsafe_allow_html=True)
-for insight in insights_random:
-    st.markdown(f"<li>{insight}</li>", unsafe_allow_html=True)
-st.markdown("</ul>", unsafe_allow_html=True)
- 
-
-
-
 
 
 st.caption("Hecho con ❤️ por TimeLeft")
+
+# Sidebar configuration menu for life stages
+st.sidebar.header("Configura las etapas de tu vida")
+
+# Initialize default stages if not already set
+if 'etapas_input' not in st.session_state:
+    st.session_state['etapas_input'] = [
+        {"nombre": "De nacimiento a conciencia","edad_inicio": 0,  "edad_fin": 5, "color": "#FFD700"},
+        {"nombre": "Infancia consciente", "edad_inicio": 5, "edad_fin": 18, "color": "#87CEEB"},
+        {"nombre": "Universidad y soltería", "edad_inicio": 18,  "edad_fin": 24, "color": "#32CD32"},
+        {"nombre": "Carrera y noviazgo","edad_inicio": 24,  "edad_fin": 37, "color": "#FF8C00"},
+        {"nombre": "Hasta jubilarte", "edad_inicio": 37,  "edad_fin": 65, "color": "#FFA07A"},
+        {"nombre": "Jubilación", "edad_inicio": 65,  "edad_fin": 76, "color": "#F8F8FF"}
+    ]
+
+# Dynamic configuration for each stage
+for i, etapa in enumerate(st.session_state['etapas_input']):
+    with st.sidebar.expander(f"Etapa {i + 1}: {etapa['nombre']}"):
+        etapa['nombre'] = st.text_input(f"Nombre de la etapa {i + 1}", etapa['nombre'], key=f"nombre_etapa_{i}") 
+        etapa['edad_fin'] = st.number_input(f"Edad de fin de la etapa {i + 1}", min_value=0, max_value=120, value=etapa['edad_fin'], key=f"edad_fin_etapa_{i}")
+        etapa['color'] = st.color_picker(f"Color de la etapa {i + 1}", etapa['color'], key=f"color_etapa_{i}")
+
+# Update etapas and colors based on user input
+etapas = {}
+colors = {}
+for etapa in st.session_state['etapas_input']:
+    fecha_ini = max(fecha_nacimiento, datetime(fecha_nacimiento.year + etapa['edad_inicio'], fecha_nacimiento.month, fecha_nacimiento.day))
+    fecha_fin = min(datetime(fecha_nacimiento.year + etapa['edad_fin'], fecha_nacimiento.month, fecha_nacimiento.day), fecha_muerte_estimada)
+    semanas = max(0, (fecha_fin - fecha_ini).days // 7)
+    etapas[etapa['nombre']] = semanas
+    colors[etapa['nombre']] = etapa['color']
+
+# Recreate DataFrame for stages
+df = pd.DataFrame.from_dict(etapas, orient="index", columns=["Semanas"])
+total_semanas = df["Semanas"].sum()
+df["Porcentaje"] = (df["Semanas"] / total_semanas * 100).round(2)
+df["Porcentaje acumulado"] = df["Porcentaje"].cumsum().round(2)
+
+
+# Initialize dynamic inputs for life stages
+etapas_input = []
+num_etapas = st.sidebar.number_input("Número de etapas", min_value=1, max_value=10, value=len(etapas_input), step=1, key="num_etapas")
+
+for i in range(num_etapas):
+    etapa_nombre = st.sidebar.text_input(f"Nombre de la etapa {i+1}", value=f"Etapa {i+1}", key=f"etapa_nombre_{i}")
+    etapa_edad_inicio = 0 if i == 0 else etapas_input[i-1]['edad_fin']  # Dynamically set based on the previous stage
+    etapa_edad_fin = st.sidebar.number_input(f"Edad fin de la etapa {i+1}", min_value=0, max_value=120, value=etapa_edad_inicio + 5, key=f"etapa_edad_fin_{i}")
+    etapa_color = st.sidebar.color_picker(f"Color de la etapa {i+1}", value="#FFFFFF", key=f"etapa_color_{i}")
+
+    etapas_input.append({
+        'nombre': etapa_nombre,
+        'edad_inicio': etapa_edad_inicio,
+        'edad_fin': etapa_edad_fin,
+        'color': etapa_color
+    })
+
+# Update etapas and colors dynamically based on user input
+etapas = {}
+colors = {}
+
+for nombre_etapa, edad_ini, edad_fin, color in etapas_input:
+    fecha_ini = max(fecha_nacimiento, datetime(fecha_nacimiento.year + edad_ini, fecha_nacimiento.month, fecha_nacimiento.day))
+    fecha_fin = min(datetime(fecha_nacimiento.year + edad_fin, fecha_nacimiento.month, fecha_nacimiento.day), fecha_muerte_estimada)
+    semanas = max(0, (fecha_fin - fecha_ini).days // 7)
+    etapas[nombre_etapa] = semanas
+    colors[nombre_etapa] = color
+
+# Recreate DataFrame for life stages
+df = pd.DataFrame.from_dict(etapas, orient="index", columns=["Semanas"])
+total_semanas = df["Semanas"].sum()
+df["Porcentaje"] = (df["Semanas"] / total_semanas * 100).round(2)
+df["Porcentaje acumulado"] = df["Porcentaje"].cumsum().round(2)
