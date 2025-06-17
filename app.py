@@ -89,11 +89,11 @@ def crear_grafico_barras_acumulado(etapas, colores, semanas_vividas, semanas_has
         fig.add_trace(go.Bar(
             y=[""],
             x=[semanas_hasta_jubilarse],
-            name="Hasta jubilarse restante",
+            name="Hasta jubilarte",
             orientation='h',
             marker=dict(color=colors["Hasta jubilarse (37-65)"], opacity=0.5),
             hovertemplate=(
-                f"<b>Hasta jubilarse restante</b><br>Semanas restantes: {semanas_hasta_jubilarse}<extra></extra>"
+                f"<b>Hasta jubilarte restante</b><br>Semanas restantes: {semanas_hasta_jubilarse}<extra></extra>"
             )
         ))
 
@@ -173,7 +173,7 @@ def calcular_horas_por_etapa(etapa, semanas_etapa, horas_dormir_por_dia, horas_t
     dias_etapa = semanas_etapa * 7
 
     # Define the stages where working hours are applicable
-    etapas_trabajo = ["Universidad y soltería", "Carrera y noviazgo", "Hasta jubilarse"]
+    etapas_trabajo = ["Universidad", "Carrera", "Hasta jubilarte"]
 
     # Calculate working hours only for specific stages
     if etapa in etapas_trabajo:
@@ -340,8 +340,8 @@ colors = {}
 etapas_input = [
     ("De nacimiento a conciencia", 0, 5, "#FFD700"),
     ("Infancia consciente", 5, 18, "#87CEEB"),
-    ("Universidad y soltería", 18, 24, "#32CD32"),
-    ("Carrera y noviazgo", 24, min(edad_jubilacion, 37), "#FF8C00"),
+    ("Universidad", 18, 24, "#32CD32"),
+    ("Carrera", 24, min(edad_jubilacion, 37), "#FF8C00"),
     ("Hasta jubilarte", 37, edad_jubilacion, "#FFA07A"),
     ("Jubilación", edad_jubilacion, esperanza_vida, "#F8F8FF")
 ]
@@ -361,8 +361,8 @@ if 'etapas_input' not in st.session_state:
     st.session_state['etapas_input'] = [
         {"nombre": "De nacimiento a conciencia", "edad_inicio": 0, "edad_fin": 5, "color": "#FFD700"},
         {"nombre": "Infancia consciente", "edad_inicio": 5, "edad_fin": 18, "color": "#87CEEB"},
-        {"nombre": "Universidad y soltería", "edad_inicio": 18, "edad_fin": 24, "color": "#32CD32"},
-        {"nombre": "Carrera y noviazgo", "edad_inicio": 24, "edad_fin": 37, "color": "#FF8C00"},
+        {"nombre": "Universidad", "edad_inicio": 18, "edad_fin": 24, "color": "#32CD32"},
+        {"nombre": "Carrera", "edad_inicio": 24, "edad_fin": 37, "color": "#FF8C00"},
         {"nombre": "Hasta jubilarte", "edad_inicio": 37, "edad_fin": 65, "color": "#FFA07A"},
         {"nombre": "Jubilación", "edad_inicio": 65, "edad_fin": esperanza_vida, "color": "#F8F8FF"},
     ]
@@ -546,8 +546,8 @@ dias_dormidos = (dias_totales * horas_dormir_por_dia) / horas_por_dia
 dias_despiertos = dias_totales - dias_dormidos
 
 # Calcular tiempo trabajando
-if "Carrera y noviazgo (24-37)" in etapas:
-    dias_trabajados = (etapas["Carrera y noviazgo (24-37)"] * 7 * horas_trabajo_por_dia) / horas_por_dia
+if "Carrera (24-37)" in etapas:
+    dias_trabajados = (etapas["Carrera (24-37)"] * 7 * horas_trabajo_por_dia) / horas_por_dia
 else:
     dias_trabajados = 0
 
@@ -753,8 +753,8 @@ if 'etapas_input' not in st.session_state:
     st.session_state['etapas_input'] = [
         {"nombre": "De nacimiento a conciencia","edad_inicio": 0,  "edad_fin": 5, "color": "#FFD700"},
         {"nombre": "Infancia consciente", "edad_inicio": 5, "edad_fin": 18, "color": "#87CEEB"},
-        {"nombre": "Universidad y soltería", "edad_inicio": 18,  "edad_fin": 24, "color": "#32CD32"},
-        {"nombre": "Carrera y noviazgo","edad_inicio": 24,  "edad_fin": 37, "color": "#FF8C00"},
+        {"nombre": "Universidad", "edad_inicio": 18,  "edad_fin": 24, "color": "#32CD32"},
+        {"nombre": "Carrera","edad_inicio": 24,  "edad_fin": 37, "color": "#FF8C00"},
         {"nombre": "Hasta jubilarte", "edad_inicio": 37,  "edad_fin": 65, "color": "#FFA07A"},
         {"nombre": "Jubilación", "edad_inicio": 65,  "edad_fin": 76, "color": "#F8F8FF"}
     ]
