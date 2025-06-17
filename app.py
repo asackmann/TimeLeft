@@ -345,6 +345,8 @@ etapas_input = [
     ("Hasta jubilarte", 37, edad_jubilacion, "#FFA07A"),
     ("Jubilación", edad_jubilacion, esperanza_vida, "#F8F8FF")
 ]
+ 
+
 
 for nombre_etapa, edad_ini, edad_fin, color in etapas_input:
     fecha_ini = max(fecha_nacimiento, datetime(fecha_nacimiento.year + edad_ini, fecha_nacimiento.month, fecha_nacimiento.day))
@@ -352,6 +354,40 @@ for nombre_etapa, edad_ini, edad_fin, color in etapas_input:
     semanas = max(0, (fecha_fin - fecha_ini).days // 7)
     etapas[nombre_etapa] = semanas
     colors[nombre_etapa] = color
+
+
+# Inicializar etapas_input si no existe en la sesión
+if 'etapas_input' not in st.session_state:
+    st.session_state['etapas_input'] = [
+        {"nombre": "De nacimiento a conciencia", "edad_inicio": 0, "edad_fin": 5, "color": "#FFD700"},
+        {"nombre": "Infancia consciente", "edad_inicio": 5, "edad_fin": 18, "color": "#87CEEB"},
+        {"nombre": "Universidad y soltería", "edad_inicio": 18, "edad_fin": 24, "color": "#32CD32"},
+        {"nombre": "Carrera y noviazgo", "edad_inicio": 24, "edad_fin": 37, "color": "#FF8C00"},
+        {"nombre": "Hasta jubilarte", "edad_inicio": 37, "edad_fin": 65, "color": "#FFA07A"},
+        {"nombre": "Jubilación", "edad_inicio": 65, "edad_fin": esperanza_vida, "color": "#F8F8FF"},
+    ]
+
+# Asegurarse de que los inputs estén correctamente tipados
+for etapa in st.session_state['etapas_input']:
+    etapa['edad_inicio'] = int(etapa.get('edad_inicio', 0))  # Por si falta
+    etapa['edad_fin'] = min(int(etapa['edad_fin']), esperanza_vida)  # Cortar a esperanza de vida
+
+# Calcular semanas para cada etapa según edad y esperanza de vida
+for etapa in st.session_state['etapas_input']:
+    nombre_etapa = etapa['nombre']
+    edad_ini = etapa['edad_inicio']
+    edad_fin = etapa['edad_fin']
+    color = etapa['color']
+
+    fecha_ini = datetime(fecha_nacimiento.year + edad_ini, fecha_nacimiento.month, fecha_nacimiento.day)
+    fecha_fin = datetime(min(fecha_nacimiento.year + edad_fin, fecha_muerte_estimada.year), fecha_nacimiento.month, fecha_nacimiento.day)
+    fecha_ini = max(fecha_ini, fecha_nacimiento)
+    fecha_fin = min(fecha_fin, fecha_muerte_estimada)
+
+    semanas = max(0, (fecha_fin - fecha_ini).days // 7)
+    etapas[nombre_etapa] = semanas
+    colors[nombre_etapa] = color
+
 
 df = pd.DataFrame.from_dict(etapas, orient="index", columns=["Semanas"])
 total_semanas = df["Semanas"].sum()
@@ -746,37 +782,4 @@ total_semanas = df["Semanas"].sum()
 df["Porcentaje"] = (df["Semanas"] / total_semanas * 100).round(2)
 df["Porcentaje acumulado"] = df["Porcentaje"].cumsum().round(2)
 
-
-# Initialize dynamic inputs for life stages
-etapas_input = []
-num_etapas = st.sidebar.number_input("Número de etapas", min_value=1, max_value=10, value=len(etapas_input), step=1, key="num_etapas")
-
-for i in range(num_etapas):
-    etapa_nombre = st.sidebar.text_input(f"Nombre de la etapa {i+1}", value=f"Etapa {i+1}", key=f"etapa_nombre_{i}")
-    etapa_edad_inicio = 0 if i == 0 else etapas_input[i-1]['edad_fin']  # Dynamically set based on the previous stage
-    etapa_edad_fin = st.sidebar.number_input(f"Edad fin de la etapa {i+1}", min_value=0, max_value=120, value=etapa_edad_inicio + 5, key=f"etapa_edad_fin_{i}")
-    etapa_color = st.sidebar.color_picker(f"Color de la etapa {i+1}", value="#FFFFFF", key=f"etapa_color_{i}")
-
-    etapas_input.append({
-        'nombre': etapa_nombre,
-        'edad_inicio': etapa_edad_inicio,
-        'edad_fin': etapa_edad_fin,
-        'color': etapa_color
-    })
-
-# Update etapas and colors dynamically based on user input
-etapas = {}
-colors = {}
-
-for nombre_etapa, edad_ini, edad_fin, color in etapas_input:
-    fecha_ini = max(fecha_nacimiento, datetime(fecha_nacimiento.year + edad_ini, fecha_nacimiento.month, fecha_nacimiento.day))
-    fecha_fin = min(datetime(fecha_nacimiento.year + edad_fin, fecha_nacimiento.month, fecha_nacimiento.day), fecha_muerte_estimada)
-    semanas = max(0, (fecha_fin - fecha_ini).days // 7)
-    etapas[nombre_etapa] = semanas
-    colors[nombre_etapa] = color
-
-# Recreate DataFrame for life stages
-df = pd.DataFrame.from_dict(etapas, orient="index", columns=["Semanas"])
-total_semanas = df["Semanas"].sum()
-df["Porcentaje"] = (df["Semanas"] / total_semanas * 100).round(2)
-df["Porcentaje acumulado"] = df["Porcentaje"].cumsum().round(2)
+ 
